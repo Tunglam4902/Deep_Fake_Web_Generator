@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deepfake Video Generator</title>
+    <style>
+        /* Thiết lập kiểu dáng cơ bản */
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: auto;
+            padding: 20px;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+
+        /* Tiêu đề chính */
+        h1 {
+            text-align: center;
+            color: #4CAF50;
+        }
+
+        /* Kiểu dáng cho form tải tệp */
+        form {
+            margin-bottom: 20px;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        label {
+            display: block;
+            margin: 10px 0 5px;
+            font-weight: bold;
+        }
+
+        input[type="file"] {
+            margin-bottom: 20px;
+        }
+
+        /* Kiểu dáng cho nút */
+        button {
+            background: #4CAF50;
+            color: #fff;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        button:hover {
+            background: #45a049;
+        }
+
+        /* Phần hiển thị xem trước video và ảnh */
+        .preview {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .preview img, .preview video {
+            max-width: 100%;
+            max-height: 200px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+
+        /* Thanh tiến trình */
+        .progress-bar {
+            width: 100%;
+            background-color: #f3f3f3;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+
+        .progress-bar-fill {
+            height: 20px;
+            background-color: #4caf50;
+            width: 0%;
+            transition: width 0.2s;
+        }
+
+        /* Hiển thị video kết quả */
+        #result {
+            display: none;
+            margin-top: 20px;
+        }
+
+        #result video {
+            width: 100%;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <!-- Tiêu đề chính -->
+    <h1>Deepfake Video Generator</h1>
+
+    <!-- Form tải lên video và ảnh -->
+    <form id="upload-form">
+        <div>
+            <label for="video">Upload Source Video:</label>
+            <input type="file" id="video" name="video" accept="video/*" required>
+        </div>
+        <div>
+            <label for="face">Upload Face Image:</label>
+            <input type="file" id="face" name="face" accept="image/*" required>
+        </div>
+        <button type="button" id="process-button">Start Processing</button>
+    </form>
+
+    <!-- Khu vực xem trước -->
+    <div class="preview" id="preview-section">
+        <div id="video-preview-container">
+            <h3>Source Video</h3>
+            <video id="video-preview" controls></video>
+        </div>
+        <div id="face-preview-container">
+            <h3>Face Image</h3>
+            <img id="face-preview" alt="Preview of uploaded face image">
+        </div>
+    </div>
+
+    <!-- Thanh tiến trình -->
+    <div class="progress-bar" style="display:none;">
+        <div class="progress-bar-fill"></div>
+    </div>
+    <div id="status"></div>
+
+    <!-- Kết quả video sau xử lý -->
+    <div id="result">
+        <h2>Deepfake Video</h2>
+        <video id="result-video" controls></video>
+    </div>
+
+    <script>
+        // Lấy các phần tử HTML
+        const videoInput = document.getElementById('video');
+        const faceInput = document.getElementById('face');
+        const videoPreview = document.getElementById('video-preview');
+        const facePreview = document.getElementById('face-preview');
+        const processButton = document.getElementById('process-button');
+        const progressBar = document.querySelector('.progress-bar');
+        const progressBarFill = document.querySelector('.progress-bar-fill');
+        const statusDiv = document.getElementById('status');
+        const previewSection = document.getElementById('preview-section');
+
+        let progressInterval; // Biến lưu interval để kiểm tra tiến trình
+
+        // Hiển thị xem trước video
+        videoInput.addEventListener('change', () => {
+            const file = videoInput.files[0];
+            if (file) {
+                videoPreview.src = URL.createObjectURL(file);
+                videoPreview.style.display = 'block'; // Hiển thị video
+            }
+        });
+
+        // Hiển thị xem trước ảnh
+        faceInput.addEventListener('change', () => {
+            const file = faceInput.files[0];
+            if (file) {
+                facePreview.src = URL.createObjectURL(file);
+                facePreview.style.display = 'block'; // Hiển thị ảnh
+            }
+        });
+
+        // Xử lý khi nhấn nút "Start Processing"
+        processButton.addEventListener('click', async () => {
+            const formData = new FormData(); // Tạo đối tượng FormData để gửi dữ liệu
+            formData.append('video', videoInput.files[0]); // Thêm video vào FormData
+            formData.append('face', faceInput.files[0]); // Thêm ảnh vào FormData
+
+            try {
+                // Gửi yêu cầu POST đến API "/upload"
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    // Hiển thị thanh tiến trình và bắt đầu kiểm tra tiến trình
+                    statusDiv.innerText = 'Processing started...';
+                    progressBar.style.display = 'block';
+                    progressBarFill.style.width = '0%';
+
+                    progressInterval = setInterval(checkProgress, 500);
+                } else {
+                    const error = await response.json();
+                    alert(`Error: ${error.error || 'An error occurred'}`);
+                }
+            } catch (err) {
+                alert('Failed to start processing. Please try again.');
+                console.error(err);
+            }
+        });
+
+        // Hàm kiểm tra tiến trình từ server
+        async function checkProgress() {
+            try {
+                const response = await fetch('/progress'); // Gửi yêu cầu GET đến API "/progress"
+                const data = await response.json(); // Lấy dữ liệu JSON từ server
+
+                if (data.status === 'processing') {
+                    const progress = data.percentage;
+                    progressBarFill.style.width = `${progress}%`; // Cập nhật thanh tiến trình
+                    statusDiv.innerText = `Processing: ${progress}%`;
+                } else if (data.status === 'done') {
+                    clearInterval(progressInterval); // Dừng kiểm tra tiến trình
+                    progressBarFill.style.width = '100%';
+                    statusDiv.innerText = 'Processing complete!';
+
+                    // Hiển thị video kết quả
+                    document.getElementById('result').style.display = 'block';
+                    document.getElementById('result-video').src = '/static/outputs/result.mp4';
+                } else if (data.status === 'error') {
+                    clearInterval(progressInterval); // Dừng kiểm tra tiến trình
+                    statusDiv.innerText = 'An error occurred during processing.';
+                    progressBar.style.display = 'none';
+                }
+            } catch (err) {
+                clearInterval(progressInterval);
+                statusDiv.innerText = 'Failed to fetch progress.';
+                console.error(err);
+            }
+        }
+    </script>
+</body>
+</html>
