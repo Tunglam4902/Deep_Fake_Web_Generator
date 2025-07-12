@@ -1,7 +1,7 @@
 # Deep_Fake_Web_Generator
 This project allows you to perform deepfake video generation by swapping faces. The application uses Flask as a web server, and several machine learning models for face swapping.
 # Requirements
-Python 3.10 or higher
+Python 3.10 or higher and
 GPU Nvidia + Cuda
 # Installation and Setup
 ## 1. Clone the Repository
